@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}上传文件{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{% url 'library:folder' folder.pk %}">返回 {{ folder.name }}</a></p>
+<section class="auth-card">
+    <h1>上传文件</h1>
+    <p class="muted">上传到 {{ folder.name }}，单个文件最多 50 MiB。</p>
+    <form id="direct-upload" class="stack-form" data-begin-url="{% url 'library:upload_begin' folder.pk %}" data-max-size="{{ max_upload_size }}">
+        {% csrf_token %}
+        <label for="upload-file">选择文件</label>
+        <input id="upload-file" type="file" required accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip,.png,.jpg,.jpeg,.gif,.webp,.txt">
+        <progress id="upload-progress" max="100" value="0" hidden aria-label="上传进度"></progress>
+        <p id="upload-status" role="status" aria-live="polite"></p>
+        <button class="button" type="submit">上传</button>
+    </form>
+    <noscript><p>请启用浏览器 JavaScript 后上传文件。</p></noscript>
+</section>
+<script src="{% static 'js/direct-upload.js' %}" defer></script>
+{% endblock %}

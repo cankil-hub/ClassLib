@@ -3,11 +3,15 @@
 在项目根目录打开 PowerShell，首次运行依次执行：
 
 ```powershell
+git switch local
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py migrate
 .\.venv\Scripts\python.exe manage.py createsuperuser
 ```
+
+本地配置使用 `config.local`，云端部署参见 [DEPLOY.md](DEPLOY.md)。
+如曾使用 `.env` 连接生产环境，请先恢复为 `.env.example` 的本地配置。
 
 管理员账号创建完成后，每次启动执行：
 

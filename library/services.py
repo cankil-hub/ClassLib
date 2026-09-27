@@ -1,30 +1,30 @@
+import logging
 import mimetypes
 from pathlib import PurePosixPath
 from uuid import uuid4
 
-from django.conf import settings
-from django.core.files.storage import FileSystemStorage
 from django.db import transaction
 
-from .models import File, Folder
+from storage_backends import get_storage
+from storage_backends.base import StorageError
 
+from .models import File, Folder, ObjectDeletion
 
-def private_storage():
-    return FileSystemStorage(location=settings.PRIVATE_FILE_ROOT)
+logger = logging.getLogger(__name__)
 
 
 def save_upload(uploaded_file, extension):
     key = f'{uuid4().hex}{extension}'
     uploaded_file.seek(0)
-    return private_storage().save(key, uploaded_file)
+    return get_storage().save(key, uploaded_file, mime_type_for(key))
 
 
 def delete_object(storage_key):
-    private_storage().delete(storage_key)
+    get_storage().delete(storage_key)
 
 
 def open_download(storage_key):
-    return private_storage().open(storage_key, 'rb')
+    return get_storage().open(storage_key)
 
 
 def mime_type_for(name):
@@ -68,7 +68,7 @@ def delete_file(file):
     key = file.storage_key
     with transaction.atomic():
         file.delete()
-        transaction.on_commit(lambda: delete_object(key))
+        schedule_object_deletion(key)
 
 
 def delete_folder(folder):
@@ -77,8 +77,20 @@ def delete_folder(folder):
         keys = list(File.objects.filter(folder_id__in=folder_ids).values_list('storage_key', flat=True))
         folder.delete()
 
-        def cleanup_deleted_files():
-            for key in keys:
-                delete_object(key)
+        for key in keys:
+            schedule_object_deletion(key)
 
-        transaction.on_commit(cleanup_deleted_files)
+
+def schedule_object_deletion(key):
+    ObjectDeletion.objects.get_or_create(storage_key=key)
+    transaction.on_commit(lambda: retry_object_deletion(key))
+
+
+def retry_object_deletion(key):
+    try:
+        delete_object(key)
+    except (StorageError, OSError):
+        logger.warning('Object deletion deferred; run cleanup_objects.')
+        return False
+    ObjectDeletion.objects.filter(storage_key=key).delete()
+    return True

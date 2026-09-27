@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block title %}暂时无法下载{% endblock %}
+{% block content %}
+<div class="empty-state"><h1>暂时无法下载</h1><p>存储服务暂不可用，请稍后重试。</p><a href="{% url 'library:home' %}">返回资料库</a></div>
+{% endblock %}

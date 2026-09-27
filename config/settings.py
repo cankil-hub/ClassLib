@@ -125,6 +125,9 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 PRIVATE_FILE_ROOT = BASE_DIR / 'private_files'
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MiB per file
+STORAGE_BACKEND = 'storage_backends.local.LocalStorage'
+DIRECT_UPLOAD_TTL = 15 * 60
+DOWNLOAD_URL_TTL = 60
 FILE_UPLOAD_HANDLERS = [
     'library.upload_handlers.SizeLimitUploadHandler',
     'django.core.files.uploadhandler.MemoryFileUploadHandler',

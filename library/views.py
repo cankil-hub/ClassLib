@@ -1,21 +1,28 @@
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
+
+from storage_backends import get_storage
+from storage_backends.base import ObjectMissing, ObjectTooLarge, StorageError
 
 from .forms import (
     FileMoveForm, FileNameForm, FileTagsForm, FolderMoveForm, FolderNameForm, TagForm,
-    UploadForm,
+    DirectUploadForm, UploadForm,
 )
-from .models import File, Folder, Tag
+from .models import File, Folder, Tag, UploadIntent
 from .permissions import has_permission, library_permission_required
 from .search import search_library
 from .services import create_file, delete_file, delete_folder, open_download
+from .uploads import begin_upload, complete_upload
 
 
 def can_manage(user):
@@ -119,6 +126,12 @@ def folder_delete(request, folder_id):
 @library_permission_required('upload')
 def file_upload(request, folder_id):
     folder = get_object_or_404(Folder, pk=folder_id)
+    if get_storage().direct_upload:
+        if request.method != 'GET':
+            return JsonResponse({'error': '请使用页面中的直传功能。'}, status=400)
+        return render(request, 'library/direct_upload.html', {
+            'folder': folder, 'max_upload_size': settings.MAX_UPLOAD_SIZE,
+        })
     form = UploadForm(
         request.POST if request.method == 'POST' else None,
         request.FILES if request.method == 'POST' else None,
@@ -154,10 +167,65 @@ def file_detail(request, file_id):
 def file_download(request, file_id):
     document = get_object_or_404(File, pk=file_id)
     try:
+        url = get_storage().download_url(document.storage_key, document.name)
+        if url:
+            response = redirect(url)
+            response['Cache-Control'] = 'private, no-store'
+            response['Referrer-Policy'] = 'no-referrer'
+            return response
         stream = open_download(document.storage_key)
-    except (FileNotFoundError, OSError) as exc:
+    except (ObjectMissing, FileNotFoundError) as exc:
         raise Http404('文件内容不存在。') from exc
+    except (StorageError, OSError):
+        return render(request, 'library/storage_error.html', status=503)
     response = FileResponse(stream, as_attachment=True, filename=document.name)
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@library_permission_required('upload')
+@require_POST
+def upload_begin(request, folder_id):
+    if not get_storage().direct_upload:
+        raise Http404
+    folder = get_object_or_404(Folder, pk=folder_id)
+    form = DirectUploadForm(request.POST, folder=folder)
+    if not form.is_valid():
+        return JsonResponse({'error': '；'.join(str(error) for errors in form.errors.values() for error in errors)}, status=400)
+    try:
+        intent, url = begin_upload(folder=folder, user=request.user, **form.cleaned_data)
+    except ValidationError as exc:
+        return JsonResponse({'error': '；'.join(exc.messages)}, status=400)
+    except StorageError:
+        return JsonResponse({'error': '存储服务暂不可用，请稍后重试。'}, status=503)
+    response = JsonResponse({
+        'upload_url': url, 'content_type': intent.mime_type,
+        'complete_url': reverse('library:upload_complete', args=[intent.pk]),
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@library_permission_required('upload')
+@require_POST
+def upload_complete(request, intent_id):
+    if not get_storage().direct_upload:
+        raise Http404
+    try:
+        document = complete_upload(intent_id=intent_id, user=request.user)
+    except UploadIntent.DoesNotExist as exc:
+        raise Http404 from exc
+    except ValidationError as exc:
+        return JsonResponse({'error': '；'.join(exc.messages)}, status=400)
+    except ObjectTooLarge:
+        return JsonResponse({'error': '文件超过大小限制。'}, status=400)
+    except ObjectMissing:
+        return JsonResponse({'error': '文件尚未上传完成，请重试。'}, status=409)
+    except IntegrityError:
+        return JsonResponse({'error': '文件名冲突或文件夹已变更，请重新上传。'}, status=409)
+    except StorageError:
+        return JsonResponse({'error': '存储服务暂不可用，可以重试确认上传。'}, status=503)
+    response = JsonResponse({'redirect_url': reverse('library:file', args=[document.pk])})
     response['Cache-Control'] = 'private, no-store'
     return response
 

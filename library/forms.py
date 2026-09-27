@@ -185,3 +185,26 @@ class FileTagsForm(forms.Form):
         label='标签',
         widget=forms.CheckboxSelectMultiple,
     )
+
+
+class DirectUploadForm(forms.Form):
+    name = forms.CharField(max_length=255)
+    size = forms.IntegerField(min_value=1)
+
+    def __init__(self, *args, folder, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.folder = folder
+
+    def clean_name(self):
+        name = clean_display_name(self.cleaned_data['name'])
+        if PurePosixPath(name).suffix.lower() not in ALLOWED_EXTENSIONS:
+            raise ValidationError('不支持这种文件类型。')
+        if File.objects.filter(folder=self.folder, name=name).exists():
+            raise ValidationError('这个文件夹已有同名文件。')
+        return name
+
+    def clean_size(self):
+        size = self.cleaned_data['size']
+        if size > settings.MAX_UPLOAD_SIZE:
+            raise ValidationError('文件不能超过 50 MiB。')
+        return size

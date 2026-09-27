@@ -1,6 +1,10 @@
 # ClassLib
 
-ClassLib 是面向班级内部的私有学习资料库。当前完成 Phase 1–4：Django/SQLite 基础项目、账号与角色、文件夹与文件管理，以及按名称、学科和标签搜索。对象存储将在 Phase 5 接入。
+ClassLib 是面向班级内部的私有学习资料库，支持账号与角色、文件夹与文件管理，以及按名称、学科和标签搜索。提供本地文件和 Supabase 私有对象存储两种实现。
+
+- `local` 分支：本地测试，默认 SQLite 和本地私有文件。
+- `production` 分支：正式部署，默认 Supabase PostgreSQL 和私有 Storage。
+- [DEPLOY.md](DEPLOY.md)：分支更新流程、存储边界、Supabase 与 Vercel 部署步骤。
 
 暂不使用 Docker 时，请按 [START.md](START.md) 启动网站。
 
@@ -26,5 +30,6 @@ docker compose exec web python manage.py createsuperuser
 - [PROJECT.md](PROJECT.md)：需求与开发路线。
 - [START.md](START.md)：本地启动步骤。
 - `accounts/`：用户、角色和账号管理。
-- `library/`：文件夹、文件、标签、权限、搜索和私有存储。
+- `library/`：文件夹、文件、标签、权限、搜索与上传业务。
+- `storage_backends/`：独立的本地磁盘与 S3 对象存储适配器。
 - `private_files/`：开发阶段的私有文件存储目录，由 Django 验证身份后提供下载，不会被 Git 跟踪。

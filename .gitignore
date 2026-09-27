@@ -7,6 +7,14 @@ staticfiles/
 private_files/
 /classlib-test-*/
 .env
+.env.*
+!.env.example
+!.env.production.example
+.vercel/
+.tmp/
+task_plan.md
+findings.md
+progress.md
 .pytest_cache/
 .mypy_cache/
 .vscode/

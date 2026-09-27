@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -93,3 +95,24 @@ class FileTag(models.Model):
         constraints = [
             models.UniqueConstraint(fields=('file', 'tag'), name='unique_file_tag')
         ]
+
+
+class UploadIntent(models.Model):
+    """Server-owned upload authorization; never accept storage keys from clients."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    folder = models.ForeignKey(Folder, null=True, on_delete=models.SET_NULL)
+    name = models.CharField(max_length=255)
+    size = models.PositiveBigIntegerField()
+    mime_type = models.CharField(max_length=120)
+    staging_key = models.CharField(max_length=255, unique=True)
+    final_key = models.CharField(max_length=255, unique=True)
+    expires_at = models.DateTimeField(db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    file = models.ForeignKey(File, null=True, blank=True, on_delete=models.SET_NULL)
+
+
+class ObjectDeletion(models.Model):
+    """Durable retry queue, committed together with metadata deletion."""
+    storage_key = models.CharField(max_length=255, primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
