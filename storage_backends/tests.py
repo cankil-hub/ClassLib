@@ -6,7 +6,7 @@ from botocore.response import StreamingBody
 from botocore.stub import Stubber
 from django.test import SimpleTestCase, override_settings
 
-from .base import ObjectMissing, ObjectTooLarge
+from .base import ObjectMissing, ObjectTooLarge, StorageError
 from .s3 import S3Storage
 
 
@@ -60,11 +60,20 @@ class S3AdapterTests(SimpleTestCase):
                 self.assertEqual(stream.read(2), b'he')
 
     def test_missing_object_is_translated(self):
+        for code in ('NoSuchKey', ''):
+            storage = S3Storage()
+            with self.subTest(code=code), Stubber(storage.client) as stub:
+                stub.add_client_error('get_object', service_error_code=code, http_status_code=404)
+                with self.assertRaises(ObjectMissing):
+                    storage.open('missing.txt')
+
+    def test_empty_provider_error_does_not_hide_a_service_failure(self):
         storage = S3Storage()
         with Stubber(storage.client) as stub:
-            stub.add_client_error('get_object', service_error_code='NoSuchKey', http_status_code=404)
-            with self.assertRaises(ObjectMissing):
-                storage.open('missing.txt')
+            stub.add_client_error('get_object', service_error_code='', http_status_code=503)
+            with self.assertRaises(StorageError) as error:
+                storage.open('file.txt')
+            self.assertNotIsInstance(error.exception, ObjectMissing)
 
     def test_copy_and_delete_use_the_selected_bucket(self):
         storage = S3Storage()
