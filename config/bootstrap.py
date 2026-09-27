@@ -12,6 +12,8 @@ def configure():
     # Hosting environment variables always take precedence over the local file.
     load_dotenv(Path(__file__).resolve().parent.parent / '.env', override=False)
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', DEFAULT_SETTINGS_MODULE)
+    if os.environ.get('RENDER') and os.environ['DJANGO_SETTINGS_MODULE'] != 'config.render':
+        raise ImproperlyConfigured('Render deployments must use config.render.')
     # Vercel wraps the discovered production settings to send collected static
     # files to its CDN output directory. This shim is only valid during that
     # build command; web entrypoints must still use the production module.

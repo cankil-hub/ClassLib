@@ -62,6 +62,18 @@ class EnvironmentTests(SimpleTestCase):
                 patch('config.bootstrap.load_dotenv'), self.assertRaises(ImproperlyConfigured):
             configure()
 
+    def test_render_cannot_accidentally_use_local_persistence(self):
+        from .bootstrap import configure
+        with patch.dict(os.environ, {'RENDER': 'true', 'DJANGO_SETTINGS_MODULE': 'config.local'}), \
+                patch('config.bootstrap.load_dotenv'), self.assertRaises(ImproperlyConfigured):
+            configure()
+
+    def test_render_rejects_untrusted_external_hostname(self):
+        with patch.dict(os.environ, PRODUCTION_ENV | {
+            'RENDER_EXTERNAL_HOSTNAME': 'attacker.example/path',
+        }, clear=True), self.assertRaises(ImproperlyConfigured):
+            runpy.run_module('config.render')
+
     def test_vercel_collectstatic_can_use_the_platform_cdn_shim(self):
         from .bootstrap import configure
         with patch.dict(os.environ, {
