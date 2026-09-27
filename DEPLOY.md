@@ -62,7 +62,7 @@ Supabase 的 S3 API 不支持 AWS `PutBucketCors`，不要套用 AWS CORS 配置
 ## 2. Vercel
 
 1. 从 GitHub 导入 `cankil-hub/ClassLib`，根目录为仓库根，框架选择 Django。
-2. 设置 Production Branch 为 `production`，函数区域尽量靠近 Supabase 数据库。
+2. 设置 Production Branch 为 `production`；`vercel.json` 将函数区域固定为新加坡 `sin1`，靠近本项目 Supabase 数据库。
 3. 在 **Production** 环境填写 `.env.production.example` 的全部变量，
    `DJANGO_SETTINGS_MODULE=config.production`。
 4. `DJANGO_ALLOWED_HOSTS` 使用实际稳定网站域名（不带协议）；
