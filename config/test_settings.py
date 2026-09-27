@@ -61,3 +61,20 @@ class EnvironmentTests(SimpleTestCase):
         with patch.dict(os.environ, {'VERCEL': '1', 'DJANGO_SETTINGS_MODULE': 'config.local'}), \
                 patch('config.bootstrap.load_dotenv'), self.assertRaises(ImproperlyConfigured):
             configure()
+
+    def test_vercel_collectstatic_can_use_the_platform_cdn_shim(self):
+        from .bootstrap import configure
+        with patch.dict(os.environ, {
+            'VERCEL': '1', 'DJANGO_SETTINGS_MODULE': '_vercel_collectstatic_settings',
+        }), patch('config.bootstrap.load_dotenv'), \
+                patch('sys.argv', ['manage.py', 'collectstatic', '--noinput']):
+            configure()
+            self.assertEqual(os.environ['DJANGO_SETTINGS_MODULE'], '_vercel_collectstatic_settings')
+
+    def test_vercel_web_runtime_rejects_the_build_only_shim(self):
+        from .bootstrap import configure
+        with patch.dict(os.environ, {
+            'VERCEL': '1', 'DJANGO_SETTINGS_MODULE': '_vercel_collectstatic_settings',
+        }), patch('config.bootstrap.load_dotenv'), patch('sys.argv', ['wsgi.py']), \
+                self.assertRaises(ImproperlyConfigured):
+            configure()
