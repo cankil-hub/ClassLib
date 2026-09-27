@@ -15,7 +15,10 @@ from .forms import (
 from .models import File, Folder, Tag
 from .permissions import has_permission, library_permission_required
 from .search import search_library
-from .services import create_file, delete_file, delete_folder, open_download
+from .services import (
+    create_file, delete_file, delete_folder, open_download, signed_download_url,
+    using_supabase_storage,
+)
 
 
 def can_manage(user):
@@ -153,6 +156,16 @@ def file_detail(request, file_id):
 @library_permission_required('download')
 def file_download(request, file_id):
     document = get_object_or_404(File, pk=file_id)
+
+    if using_supabase_storage():
+        try:
+            url = signed_download_url(document.storage_key, expires_in=60)
+        except Exception as exc:
+            raise Http404('文件内容不存在。') from exc
+        if not url:
+            raise Http404('文件内容不存在。')
+        return redirect(url)
+
     try:
         stream = open_download(document.storage_key)
     except (FileNotFoundError, OSError) as exc:
