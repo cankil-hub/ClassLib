@@ -16,7 +16,8 @@ def translate_errors():
     try:
         yield
     except ClientError as exc:
-        if exc.response.get('Error', {}).get('Code') in {'404', 'NoSuchKey', 'NotFound'}:
+        if (exc.response.get('Error', {}).get('Code') in {'404', 'NoSuchKey', 'NotFound'}
+                or exc.response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 404):
             raise ObjectMissing from exc
         raise StorageError('Object storage request failed.') from exc
     except BotoCoreError as exc:
