@@ -3,28 +3,73 @@ from pathlib import PurePosixPath
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction
 
 from .models import File, Folder
 
 
+def using_supabase_storage():
+    return settings.STORAGE_BACKEND == 'supabase'
+
+
 def private_storage():
     return FileSystemStorage(location=settings.PRIVATE_FILE_ROOT)
+
+
+def supabase_storage():
+    if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError('Supabase storage environment variables are not configured.')
+    from supabase import create_client
+    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return client.storage.from_(settings.SUPABASE_STORAGE_BUCKET)
 
 
 def save_upload(uploaded_file, extension):
     key = f'{uuid4().hex}{extension}'
     uploaded_file.seek(0)
+
+    if using_supabase_storage():
+        payload = uploaded_file.read()
+        supabase_storage().upload(
+            key,
+            payload,
+            {
+                'content-type': mimetypes.guess_type(uploaded_file.name)[0] or 'application/octet-stream',
+                'upsert': 'false',
+            },
+        )
+        return key
+
     return private_storage().save(key, uploaded_file)
 
 
 def delete_object(storage_key):
+    if using_supabase_storage():
+        supabase_storage().remove([storage_key])
+        return
     private_storage().delete(storage_key)
 
 
 def open_download(storage_key):
+    if using_supabase_storage():
+        raise RuntimeError('Use signed_download_url() for Supabase-backed files.')
     return private_storage().open(storage_key, 'rb')
+
+
+def signed_download_url(storage_key, expires_in=60):
+    if using_supabase_storage():
+        response = supabase_storage().create_signed_url(
+            storage_key,
+            expires_in,
+            {'download': True},
+        )
+        if isinstance(response, dict):
+            return response.get('signedURL') or response.get('signedUrl')
+        return getattr(response, 'signed_url', None) or getattr(response, 'signedURL', None)
+
+    return None
 
 
 def mime_type_for(name):
