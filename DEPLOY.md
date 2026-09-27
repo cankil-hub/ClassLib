@@ -86,11 +86,15 @@ Vercel 的 4.5 MB 请求限制要求浏览器直传；本项目云端不会接�
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py check --deploy --settings=config.production
-.\.venv\Scripts\python.exe manage.py migrate --settings=config.production
+.\.venv\Scripts\python.exe scripts/migrate_production.py
 .\.venv\Scripts\python.exe manage.py createsuperuser --settings=config.production
 ```
 
 管理员在终端交互创建，不在公开页面提供初始化接口。
+正式数据库迁移使用 `scripts/migrate_production.py`：它在一个事务中运行迁移，
+取消当前迁移角色对新表的匿名 API 默认授权，并为 Django 表启用 RLS、撤销
+`anon`、`authenticated` 和 `PUBLIC` 的表/序列权限。Django 的数据库角色仍可正常访问。
+该脚本用于此应用的专用 PostgreSQL 项目；非原子迁移会被拒绝，需单独制定发布步骤。
 初始化完成后，恢复本地 `.env` 为 `config.local` 或移走生产配置；
 Vercel 继续使用 Transaction pooler。
 已有 SQLite 数据和 `private_files/` 不会自动复制到 Supabase，需要另行迁移。
