@@ -8,5 +8,11 @@ classlib-test-*
 staticfiles
 private_files
 .env
+.env.*
+.tmp
+.vercel
+task_plan.md
+findings.md
+progress.md
 .gitignore
 PROJECT.md
